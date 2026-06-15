@@ -1,36 +1,63 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/Layout/MainLayout';
-import { InventoryList } from './features/inventory/components/InventoryList';
-import { WarehouseViewer } from './features/inventory/components/WarehouseViewer';
+import { DashboardPage } from './pages/DashboardPage';
+import { InventoryPage } from './pages/InventoryPage';
+import { ViewerPage } from './pages/ViewerPage';
+import { AuthProvider } from './features/auth/context/AuthContext';
+import { ProtectedRoute } from './features/auth/components/ProtectedRoute';
+import { LoginPage } from './features/auth/components/LoginPage';
+
+import { RentShelvesPage } from './pages/RentShelvesPage';
+import { MyContractsPage } from './pages/MyContractsPage';
+import { ContractDetailPage } from './pages/ContractDetailPage';
+import { EmployeeManagementPage } from './pages/EmployeeManagementPage';
+import { CustomerManagementPage } from './pages/CustomerManagementPage';
+import { useAppSelector } from './store/hooks';
+import { useEffect } from 'react';
 
 function App() {
-  const [view, setView] = useState<'list' | '2d'>('list');
+  const darkMode = useAppSelector((state) => state.theme.darkMode);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   return (
-    <MainLayout>
-      <header style={{ padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1>Warehouse Dashboard</h1>
-          <p>Manage your real-time inventory and logistics flow.</p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            onClick={() => setView('list')} 
-            style={{ padding: '10px 20px', background: view === 'list' ? '#2196F3' : '#eee', color: view === 'list' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Inventory List
-          </button>
-          <button 
-            onClick={() => setView('2d')} 
-            style={{ padding: '10px 20px', background: view === '2d' ? '#2196F3' : '#eee', color: view === '2d' ? 'white' : 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            2D Warehouse View
-          </button>
-        </div>
-      </header>
-      
-      {view === 'list' ? <InventoryList /> : <WarehouseViewer />}
-    </MainLayout>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* public routes */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* protected routes */}
+          <Route 
+            path="/*" 
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Routes>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/inventory" element={<InventoryPage />} />
+                    <Route path="/viewer" element={<ViewerPage />} />
+                    <Route path="/rent" element={<RentShelvesPage />} />
+                    <Route path="/contracts" element={<MyContractsPage />} />
+                    <Route path="/contracts/:id" element={<ContractDetailPage />} />
+                    <Route path="/admin/employees" element={<EmployeeManagementPage />} />
+                    <Route path="/admin/customers" element={<CustomerManagementPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </MainLayout>
+              </ProtectedRoute>
+            } 
+          />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

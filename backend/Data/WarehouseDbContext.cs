@@ -14,6 +14,8 @@ public class WarehouseDbContext : DbContext
     public DbSet<LPNContent> LPNContents => Set<LPNContent>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<RentalContract> RentalContracts => Set<RentalContract>();
+    public DbSet<RentalPayment> RentalPayments => Set<RentalPayment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,11 +26,19 @@ public class WarehouseDbContext : DbContext
         modelBuilder.Entity<LPNContent>().ToTable("LPNContent");
         modelBuilder.Entity<Employee>().ToTable("Employee");
         modelBuilder.Entity<WorkOrder>().ToTable("WorkOrder");
+        modelBuilder.Entity<RentalContract>().ToTable("RentalContract");
+        modelBuilder.Entity<RentalPayment>().ToTable("RentalPayment");
 
         
         modelBuilder.Entity<LPN>()
             .HasOne(l => l.Bin)
             .WithMany(b => b.LPNs)
             .HasForeignKey(l => l.CurrentBinID);
+
+        
+        modelBuilder.Entity<RentalContract>()
+            .HasMany(c => c.Shelves)
+            .WithOne(s => s.Contract) 
+            .HasForeignKey(s => s.ContractID);
     }
 }

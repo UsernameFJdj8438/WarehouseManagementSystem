@@ -6,7 +6,8 @@ namespace Backend.Models;
 public enum EmployeeRole
 {
     Manager,
-    Worker
+    Worker,
+    Customer
 }
 
 public class Employee
@@ -17,6 +18,9 @@ public class Employee
 
     [Column("Name")]
     public required string Name { get; set; }
+
+    [Column("Email")]
+    public string? Email { get; set; }
 
     [Column("Role")]
     public EmployeeRole Role { get; set; }

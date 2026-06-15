@@ -54,12 +54,14 @@ export interface Shelf {
 
 export enum EmployeeRole {
   Manager = 0,
-  Worker = 1
+  Worker = 1,
+  Customer = 2
 }
 
 export interface Employee {
   employeeID: number;
   name: string;
+  email?: string;
   role: EmployeeRole;
 }
 

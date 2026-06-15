@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-page: var(--page-bg);
+  --color-card: var(--card-bg);
+  --color-base-text: var(--text-main);
+  --color-muted-text: var(--text-muted);
+  --color-base-border: var(--border-base);
+  
+  --color-primary-50: var(--orange-50);
+  --color-primary-100: var(--orange-100);
+  --color-primary-500: var(--orange-500);
+  --color-primary-600: var(--orange-600);
+  --color-primary-700: var(--orange-700);
+  --color-primary-900: var(--orange-900);
+}
+
+:root {
+  /* light mode  */
+  --page-bg: #fffcf0;  
+  --card-bg: #ffffff;
+  --text-main: #1c1917; 
+  --text-muted: #57534e;
+  --border-base: #e7e5e4; 
+
+  --orange-50: #fff7ed;
+  --orange-100: #ffedd5;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --orange-700: #c2410c;
+  --orange-900: #7c2d12;
+
+  --text-card-title: #1c1917;
+  --text-card-body: #44403c;  
+  --text-btn: #ffffff;
+
+  margin: 0;
+  padding: 0;
+}
+
+.dark {
+  /* dark mode */
+  --page-bg: #0c0a09;   
+  --card-bg: #1c1917;   
+  --text-main: #fafaf9; 
+  --text-muted: #a8a29e; 
+  --border-base: #292524;
+
+  --orange-50: #292524; 
+  --orange-100: #44403c;
+  --orange-500: #fb923c; 
+  --orange-600: #f97316;
+  --orange-700: #ea580c;
+  --orange-900: #fff7ed;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}

@@ -1,64 +1,63 @@
 import React, { useEffect, useState } from 'react';
-import { InventoryItem } from '../types/inventory.types';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
+import { fetchInventory } from '../../../store/slices/inventorySlice';
 import { inventoryApi } from '../services/inventoryApi';
+import { Button } from '../../../components/UI/Button';
+import { Card } from '../../../components/UI/Card';
+import { Input } from '../../../components/UI/Input';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const productSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  sku: z.string().min(1, "SKU is required"),
+  description: z.string().default(''),
+  price: z.preprocess((val) => Number(val), z.number()),
+  weight: z.preprocess((val) => Number(val), z.number()),
+  minStockLevel: z.preprocess((val) => Number(val), z.number()),
+  totalStock: z.number().default(0),
+  unassignedStock: z.number().default(0),
+});
+
+type ProductFormData = z.infer<typeof productSchema>;
 
 export const InventoryList: React.FC = () => {
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'catalog' | 'add'>('catalog');
-
+  const dispatch = useAppDispatch();
+  const { items: inventory, loading, error } = useAppSelector((state) => state.inventory);
   
+  const [activeTab, setActiveTab] = useState<'catalog' | 'add'>('catalog');
   const [searchTerm, setSearchTerm] = useState('');
   const [maxPrice, setMaxPrice] = useState(1000);
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'stock'>('name');
 
-  
-  const [newProduct, setNewProduct] = useState({
-    sku: '',
-    name: '',
-    description: '',
-    price: 0,
-    minStockLevel: 0,
-    weight: 0,
-    totalStock: 0,
-    unassignedStock: 0
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProductFormData>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: '',
+      sku: 'PRD-',
+      description: '',
+      price: 0,
+      weight: 0,
+      minStockLevel: 5,
+      totalStock: 0,
+      unassignedStock: 0
+    }
   });
 
-  const fetchInventory = async () => {
-    try {
-      const data = await inventoryApi.getInventory();
-      setInventory(data);
-      setLoading(false);
-    } catch (err) {
-      console.error(err);
-      setError("Could not connect to the backend sandbox (Port 8081).");
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchInventory();
-  }, []);
+    if (inventory.length === 0) {
+      dispatch(fetchInventory());
+    }
+  }, [dispatch, inventory.length]);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onProductSubmit = async (data: ProductFormData) => {
     try {
-      await inventoryApi.createProduct(newProduct);
-      setNewProduct({
-        sku: '',
-        name: '',
-        description: '',
-        price: 0,
-        minStockLevel: 0,
-        weight: 0,
-        totalStock: 0,
-        unassignedStock: 0
-      });
-      await fetchInventory();
+      await inventoryApi.createProduct(data);
+      reset();
+      dispatch(fetchInventory());
       setActiveTab('catalog');
-      alert('Product added successfully!');
     } catch (err) {
       alert("Failed to create product");
     }
@@ -77,44 +76,50 @@ export const InventoryList: React.FC = () => {
       return a.minStockLevel - b.minStockLevel;
     });
 
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading large dataset...</div>;
-  if (error) return <div style={{ color: 'red', padding: '40px', textAlign: 'center' }}>{error}</div>;
+  if (loading && inventory.length === 0) {
+    return <div className="p-10 text-center text-gray-500">Loading inventory data...</div>;
+  }
+
+  if (error) {
+    return <div className="p-10 text-center text-red-600 font-medium">{error}</div>;
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
-      {}
-      <div style={{ padding: '10px 20px', background: '#fff', borderBottom: '1px solid #eee', display: 'flex', gap: '20px' }}>
+    <div className="flex flex-col h-[calc(100vh-180px)] bg-gray-50 dark:bg-slate-950 transition-colors">
+      {/* Tabs */}
+      <div className="flex gap-4 px-6 bg-card border-b border-base-border transition-colors">
         <button 
           onClick={() => setActiveTab('catalog')}
-          style={{ padding: '8px 16px', border: 'none', background: 'transparent', borderBottom: activeTab === 'catalog' ? '2px solid #2196F3' : 'none', color: activeTab === 'catalog' ? '#2196F3' : '#666', fontWeight: 'bold', cursor: 'pointer' }}
+          className={`py-4 px-2 text-sm font-bold transition-all border-b-2 ${
+            activeTab === 'catalog' ? "border-primary-600 text-primary-600" : "border-transparent text-muted-text hover:text-base-text"
+          }`}
         >
           Product Catalog
         </button>
         <button 
           onClick={() => setActiveTab('add')}
-          style={{ padding: '8px 16px', border: 'none', background: 'transparent', borderBottom: activeTab === 'add' ? '2px solid #2196F3' : 'none', color: activeTab === 'add' ? '#2196F3' : '#666', fontWeight: 'bold', cursor: 'pointer' }}
+          className={`py-4 px-2 text-sm font-bold transition-all border-b-2 ${
+            activeTab === 'add' ? "border-primary-600 text-primary-600" : "border-transparent text-muted-text hover:text-base-text"
+          }`}
         >
           + Add New Product
         </button>
       </div>
 
       {activeTab === 'catalog' ? (
-        <>
-          {}
-          <div style={{ padding: '20px', borderBottom: '1px solid #eee', background: '#fff', display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <input 
-                type="text" 
-                placeholder="Search by Product Name, SKU, or Description..." 
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-wrap items-center gap-4 p-4 bg-card border-b border-base-border transition-colors">
+            <div className="flex-1 min-w-[300px]">
+              <Input 
+                placeholder="Search by Product Name or SKU..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '12px 20px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '1rem' }}
               />
             </div>
             <select 
               value={sortBy} 
               onChange={e => setSortBy(e.target.value as any)}
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+              className="h-10 px-3 rounded-md border border-base-border bg-card text-sm text-base-text focus:outline-none focus:ring-2 focus:ring-primary-600 transition-colors"
             >
               <option value="name">Sort by Name</option>
               <option value="price">Sort by Price</option>
@@ -122,112 +127,134 @@ export const InventoryList: React.FC = () => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            {}
-            <aside style={{ width: '300px', borderRight: '1px solid #eee', padding: '25px', background: '#fcfcfc', overflowY: 'auto' }}>
-              <h3 style={{ marginTop: 0, marginBottom: '20px' }}>Filters</h3>
+          <div className="flex flex-1 overflow-hidden">
+            {/* filters */}
+            <aside className="w-64 p-6 bg-page border-r border-base-border overflow-y-auto hidden lg:block transition-colors">
+              <h3 className="text-sm font-black text-base-text uppercase tracking-widest mb-6">Filters</h3>
               
-              <div style={{ marginBottom: '30px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '10px' }}>
-                  Max Price: ${maxPrice}
+              <div className="mb-8">
+                <label className="block text-sm font-bold text-muted-text mb-2">
+                  Max Price: <span className="text-primary-600">${maxPrice}</span>
                 </label>
                 <input 
                   type="range" min="0" max="1000" step="10" 
                   value={maxPrice} onChange={e => setMaxPrice(Number(e.target.value))}
-                  style={{ width: '100%' }}
+                  className="w-full h-1.5 bg-base-border rounded-lg appearance-none cursor-pointer accent-primary-600"
                 />
               </div>
 
-              <div style={{ marginBottom: '30px' }}>
-                <h4 style={{ marginBottom: '15px' }}>Availability</h4>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={showLowStockOnly} onChange={e => setShowLowStockOnly(e.target.checked)} />
-                  Show Low Stock Alerts Only
+              <div className="mb-8">
+                <h4 className="text-sm font-bold text-base-text mb-3">Availability</h4>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={showLowStockOnly} 
+                    onChange={e => setShowLowStockOnly(e.target.checked)}
+                    className="w-4 h-4 accent-primary-600 border-base-border rounded focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-muted-text group-hover:text-base-text transition-colors font-medium">Low Stock Only</span>
                 </label>
               </div>
 
-              <div style={{ marginTop: '40px', padding: '15px', background: '#e3f2fd', borderRadius: '8px', color: '#0d47a1' }}>
-                <p style={{ margin: 0, fontSize: '0.9rem' }}>Showing <strong>{filteredItems.length}</strong> of {inventory.length} items</p>
+              <div className="p-4 bg-primary-500/10 dark:bg-primary-900/20 rounded-xl border border-primary-500/20">
+                <p className="text-xs text-primary-700 dark:text-primary-400 font-bold">
+                  Showing <span className="text-primary-600 dark:text-primary-300">{filteredItems.length}</span> of {inventory.length} items
+                </p>
               </div>
             </aside>
 
-            {}
-            <main style={{ flex: 1, padding: '25px', overflowY: 'auto', background: '#f5f5f5' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+
+            <main className="flex-1 p-6 overflow-y-auto bg-page transition-colors">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredItems.map(item => (
-                  <div key={item.productID} style={{ background: '#fff', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border: '1px solid #eee' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#999', fontWeight: 'bold' }}>{item.sku}</span>
-                      <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#2e7d32' }}>${item.price}</span>
+                  <Card key={item.productID} padding="md" className="hover:shadow-lg hover:border-primary-500/30 transition-all group">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-black text-muted-text uppercase tracking-widest">{item.sku}</span>
+                      <span className="text-lg font-black text-green-600 dark:text-green-500">${item.price}</span>
                     </div>
-                    <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem' }}>{item.name}</h3>
-                    <p style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#666' }}>{item.description}</p>
+                    <h3 className="text-md font-bold text-card-title mb-1 group-hover:text-primary-600 transition-colors">{item.name}</h3>
+                    <p className="text-sm text-card-body mb-4 line-clamp-2">{item.description}</p>
                     
-                    <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: '0.85rem' }}><span style={{ color: '#888' }}>Weight: </span><strong>{item.weight} kg</strong></div>
-                      <div style={{ fontSize: '0.85rem' }}>
-                        <span style={{ color: '#888' }}>Stock: </span><strong>{item.totalStock}</strong>
-                        {item.unassignedStock > 0 && <span style={{ color: '#2196F3', marginLeft: '5px' }}>({item.unassignedStock} unasgn)</span>}
+                    <div className="pt-4 border-t border-base-border grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-muted-text font-medium">Weight:</span> <span className="font-black text-base-text">{item.weight} kg</span></div>
+                      <div>
+                        <span className="text-muted-text font-medium">Stock:</span> <span className="font-black text-base-text">{item.totalStock}</span>
+                        {item.unassignedStock > 0 && <span className="text-primary-600 ml-1 font-black">({item.unassignedStock})</span>}
                       </div>
                       {item.totalStock < item.minStockLevel && (
-                        <span style={{ background: '#fff3e0', color: '#ef6c00', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>Low Stock</span>
+                        <div className="col-span-2 mt-2">
+                          <span className="inline-block px-2 py-1 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded text-[10px] font-black uppercase tracking-tighter">Low Stock Alert</span>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             </main>
           </div>
-        </>
+        </div>
       ) : (
-        
-        <main style={{ flex: 1, padding: '40px', background: '#f5f5f5', overflowY: 'auto' }}>
-          <div style={{ maxWidth: '600px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-            <h2>Register New Product</h2>
-            <p style={{ color: '#666', marginBottom: '30px' }}>Enter product details to add it to the warehouse system catalog.</p>
+        <main className="flex-1 p-8 overflow-y-auto bg-gray-50 dark:bg-slate-950">
+          <Card className="max-w-2xl mx-auto" padding="lg">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Register New Product</h2>
+            <p className="text-gray-500 dark:text-slate-400 mb-8">Enter product details to add it to the warehouse system catalog.</p>
             
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Product Name</label>
-                  <input type="text" required value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>SKU (Unique Identifier)</label>
-                  <input type="text" required value={newProduct.sku} onChange={e => setNewProduct({...newProduct, sku: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
-                </div>
+            <form onSubmit={handleSubmit(onProductSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input 
+                  label="Product Name" 
+                  {...register("name")}
+                  error={errors.name?.message}
+                />
+                <Input 
+                  label="SKU (Unique Identifier)" 
+                  {...register("sku")}
+                  error={errors.sku?.message}
+                />
               </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Description</label>
-                <textarea rows={3} value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Description</label>
+                <textarea 
+                  rows={3} 
+                  {...register("description")}
+                  className="w-full rounded-md border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 transition-colors"
+                />
+                {errors.description && <p className="text-red-500 text-[10px] font-black uppercase tracking-tighter mt-1">{errors.description.message}</p>}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Price ($)</label>
-                  <input type="number" required value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Weight (kg)</label>
-                  <input type="number" step="0.01" required value={newProduct.weight} onChange={e => setNewProduct({...newProduct, weight: Number(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Min. Stock Level</label>
-                  <input type="number" required value={newProduct.minStockLevel} onChange={e => setNewProduct({...newProduct, minStockLevel: Number(e.target.value)})} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Input 
+                  label="Price ($)" 
+                  type="number" 
+                  {...register("price")}
+                  error={errors.price?.message}
+                />
+                <Input 
+                  label="Weight (kg)" 
+                  type="number" 
+                  step="0.01" 
+                  {...register("weight")}
+                  error={errors.weight?.message}
+                />
+                <Input 
+                  label="Min. Stock" 
+                  type="number" 
+                  {...register("minStockLevel")}
+                  error={errors.minStockLevel?.message}
+                />
               </div>
 
-              <div style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
-                <button type="submit" style={{ flex: 1, padding: '15px', background: '#2196F3', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+              <div className="flex gap-4 pt-4">
+                <Button type="submit" variant="primary" fullWidth className="py-6 text-lg">
                   Create Product
-                </button>
-                <button type="button" onClick={() => setActiveTab('catalog')} style={{ flex: 1, padding: '15px', background: '#eee', color: '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setActiveTab('catalog')} className="px-8">
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         </main>
       )}
     </div>

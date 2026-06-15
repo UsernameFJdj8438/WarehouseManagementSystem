@@ -32,4 +32,10 @@ public class Product
     
     [Column("Weight")]
     public double Weight { get; set; }
+
+    // checks if you need to order more items, mainly exists for random backend tests 
+    public bool IsLowStock()
+    {
+        return TotalStock < MinStockLevel;
+    }
 }

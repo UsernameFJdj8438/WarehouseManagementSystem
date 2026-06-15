@@ -1,0 +1,24 @@
+{
+  "common": {
+    "welcome": "Witaj",
+    "logout": "Wyloguj",
+    "loading": "Ładowanie..."
+  },
+  "navbar": {
+    "dashboard": "Panel",
+    "inventory": "Inwentaryzacja",
+    "map": "Mapa Magazynu"
+  },
+  "dashboard": {
+    "title": "Panel Sterowania Magazynem",
+    "welcome_back": "Witaj ponownie",
+    "inventory_summary": "Podsumowanie Zapasów",
+    "inventory_desc": "Przeglądaj i zarządzaj stanami magazynowymi, jednostkami SKU i potrzebami uzupełnienia zapasów.",
+    "go_to_inventory": "Przejdź do Inwentarza",
+    "warehouse_map": "Mapa Magazynu",
+    "warehouse_desc": "Wizualizacja zajętości binów i układu magazynu.",
+    "open_map": "Otwórz Mapę",
+    "quick_stats": "Szybkie Statystyki",
+    "total_products": "Wszystkie Produkty"
+  }
+}

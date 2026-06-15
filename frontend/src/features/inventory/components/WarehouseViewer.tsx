@@ -1,26 +1,30 @@
 import React, { useEffect, useState } from 'react';
+import { useAppDispatch, useAppSelector } from '../../../store/hooks';
+import { fetchShelves } from '../../../store/slices/inventorySlice';
 import { Shelf, Employee, WorkOrder, EmployeeRole, WorkOrderStatus, LPN, Bin } from '../types/inventory.types';
 import { warehouseApi } from '../services/warehouseApi';
+import { Button } from '../../../components/UI/Button';
+import { Card } from '../../../components/UI/Card';
+import { Input } from '../../../components/UI/Input';
+import { useAuth } from '../../auth/context/AuthContext';
 
 export const WarehouseViewer: React.FC = () => {
-  const [shelves, setShelves] = useState<Shelf[]>([]);
+  const dispatch = useAppDispatch();
+  const { shelves, loading } = useAppSelector((state) => state.inventory);
+  const { user: currentUser } = useAuth();
+  
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<Shelf | null>(null);
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
-  const [loading, setLoading] = useState(true);
-  
   
   const [movementSource, setMovementSource] = useState<{ bin: Bin, lpn: LPN } | null>(null);
   const [assignedWorkerId, setAssignedWorkerId] = useState<number>(0);
 
-  
   const [isAddingShelf, setIsAddingShelf] = useState(false);
   const [isEditingShelf, setIsEditingShelf] = useState(false);
   const [newShelfLabel, setNewShelfLabel] = useState('');
   const [newShelfType, setNewShelfType] = useState<'Standard' | 'Dock'>('Standard');
-  
   
   const [editShelfLabel, setEditShelfLabel] = useState('');
   const [editShelfX, setEditShelfX] = useState(0);
@@ -28,31 +32,31 @@ export const WarehouseViewer: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [shelfData, employeeData, woData] = await Promise.all([
-        warehouseApi.getShelves(),
-        warehouseApi.getEmployees(),
-        warehouseApi.getWorkOrders()
-      ]);
-      setShelves(shelfData);
+      dispatch(fetchShelves());
+      
+      let employeeData: Employee[] = [];
+      if (currentUser?.role === EmployeeRole.Manager) {
+        employeeData = await warehouseApi.getEmployees();
+      }
+
+      const woData = await warehouseApi.getWorkOrders();
+      
+      console.log("Employees fetched:", employeeData);
+      console.log("Work Orders fetched:", woData);
+      
       setEmployees(employeeData);
       setWorkOrders(woData);
-      if (!currentUser && employeeData.length > 0) {
-        setCurrentUser(employeeData[0]);
-      }
-      setLoading(false);
     } catch (err) {
-      console.error(err);
-      setLoading(false);
+      console.error("Failed to fetch data in Viewer:", err);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (currentUser) fetchData();
+  }, [dispatch, currentUser?.employeeID]);
 
   const handleAddShelf = async () => {
     if (!newShelfLabel) return;
-    
     
     const lastShelf = shelves[shelves.length - 1];
     const newX = 500; 
@@ -138,10 +142,12 @@ export const WarehouseViewer: React.FC = () => {
     }
   };
 
-  if (loading) return <div style={{ padding: '20px' }}>Loading Professional WMS Environment...</div>;
+  if (loading && shelves.length === 0) return <div className="p-10 text-center text-muted-text">Loading Warehouse Environment...</div>;
 
-  const activeWO = workOrders.find(wo => wo.assignedEmployeeID === currentUser?.employeeID && wo.status !== WorkOrderStatus.Completed);
-  
+  const activeWO = workOrders.find(wo => {
+    const assignedId = wo.assignedEmployeeID || (wo as any).assignedEmployeeId;
+    return assignedId === currentUser?.employeeID && wo.status !== WorkOrderStatus.Completed;
+  });
   
   const getShelfIdFromBinId = (binId: number) => {
     for (const shelf of shelves) {
@@ -153,78 +159,73 @@ export const WarehouseViewer: React.FC = () => {
   const activeTaskSourceShelf = activeWO?.status === WorkOrderStatus.Pending ? getShelfIdFromBinId(activeWO.fromBinID) : null;
   const activeTaskDestShelf = activeWO?.status === WorkOrderStatus.InProgress ? getShelfIdFromBinId(activeWO.toBinID) : null;
 
+  const activeTaskBinID = activeWO?.status === WorkOrderStatus.Pending ? activeWO.fromBinID : 
+                          activeWO?.status === WorkOrderStatus.InProgress ? activeWO.toBinID : null;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 40px)', padding: '20px', gap: '20px', background: '#f5f7fa', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="flex flex-col w-full h-[calc(100vh-180px)] gap-6">
       
-      {}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '15px 25px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <h2 style={{ margin: 0, color: '#1a365d', fontSize: '1.5rem' }}>Warehouse Control Center</h2>
-          <div style={{ height: '24px', width: '1px', background: '#e2e8f0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>Active Session:</span>
-            <select 
-              value={currentUser?.employeeID || ''} 
-              onChange={(e) => setCurrentUser(employees.find(emp => emp.employeeID === Number(e.target.value)) || null)}
-              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer', fontWeight: 600 }}
-            >
-              {employees.map(emp => (
-                <option key={emp.employeeID} value={emp.employeeID}>{emp.name} ({EmployeeRole[emp.role]})</option>
-              ))}
-            </select>
+      <Card padding="none" className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 transition-colors">
+        <div className="flex items-center gap-6">
+          <h2 className="text-xl font-black text-card-title tracking-tight">Warehouse Control</h2>
+          <div className="h-8 w-px bg-base-border hidden sm:block" />
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-muted-text uppercase tracking-widest">Session:</span>
+            <span className="px-3 py-1.5 rounded-lg border border-base-border bg-page text-sm font-black text-base-text shadow-inner">
+              {currentUser?.name}
+            </span>
           </div>
         </div>
         
         {currentUser?.role === EmployeeRole.Worker && activeWO && (
-          <div style={{ background: '#ebf8ff', border: '1px solid #bee3f8', padding: '8px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <span style={{ color: '#2b6cb0', fontWeight: 600, fontSize: '0.9rem' }}>
-              Current Task: Move {activeWO.lpnid}
+          <div className="flex items-center gap-4 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800 rounded-lg transition-colors">
+            <span className="text-sm font-bold text-primary-700 dark:text-primary-300">
+              Task: Move {activeWO.lpnid}
             </span>
-            <button 
+            <Button 
+              size="sm"
+              variant={activeWO.status === WorkOrderStatus.Pending ? 'primary' : 'secondary'}
               onClick={() => handleUpdateWOStatus(activeWO.workOrderID, activeWO.status === WorkOrderStatus.Pending ? WorkOrderStatus.InProgress : WorkOrderStatus.Completed)}
-              style={{ padding: '5px 15px', background: activeWO.status === WorkOrderStatus.Pending ? '#f59e0b' : '#3182ce', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
             >
               {activeWO.status === WorkOrderStatus.Pending ? 'Confirm Pick' : 'Confirm Drop-off'}
-            </button>
+            </Button>
           </div>
         )}
-      </div>
+      </Card>
 
-      <div style={{ display: 'flex', flex: 1, gap: '20px', minHeight: 0 }}>
-        {}
-        <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: '15px', border: '1px solid #e2e8f0', borderRadius: '12px', background: 'white', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, color: '#334155' }}>2D Storage Visualization</h3>
+      <div className="flex flex-1 gap-6 min-h-0">
+        <div className="flex-[3] flex flex-col bg-card rounded-xl border border-base-border shadow-sm overflow-hidden transition-colors">
+          <div className="p-4 border-b border-base-border flex justify-between items-center bg-page/50">
+            <h3 className="font-bold text-card-title tracking-tight">2D Storage Visualization</h3>
             {movementSource && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fffbeb', border: '1px solid #fef3c7', padding: '6px 18px', borderRadius: '24px', fontSize: '0.85rem', color: '#92400e', fontWeight: 600 }}>
+              <div className="flex items-center gap-3 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/40 border border-primary-100 dark:border-primary-800 rounded-full text-xs font-bold text-primary-800 dark:text-primary-200 animate-pulse">
                 <span>Moving: {movementSource.lpn.lpnid}</span>
-                <div style={{ width: '1px', height: '16px', background: '#fde68a' }} />
+                <div className="w-px h-3 bg-primary-200 dark:bg-primary-700" />
                 <span>Assign to:</span>
                 <select 
                   value={assignedWorkerId}
                   onChange={(e) => setAssignedWorkerId(Number(e.target.value))}
-                  style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid #fde68a', background: 'white', fontSize: '0.8rem', color: '#92400e', cursor: 'pointer' }}
+                  className="bg-card border border-primary-200 dark:border-primary-700 rounded px-1 text-base-text text-[10px]"
                 >
                   <option value={0}>Choose Worker...</option>
-                  {employees.filter(e => e.role === EmployeeRole.Worker).map(emp => (
+                  {employees.filter(e => 
+                    e.role === EmployeeRole.Worker || 
+                    e.role === 1 || 
+                    String(e.role).toLowerCase() === 'worker'
+                  ).map(emp => (
                     <option key={emp.employeeID} value={emp.employeeID}>{emp.name}</option>
                   ))}
                 </select>
-                <button 
-                  onClick={() => { setMovementSource(null); setAssignedWorkerId(0); }} 
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400e', fontSize: '1rem', fontWeight: 'bold', marginLeft: '4px' }}
-                >
-                  ✕
-                </button>
+                <button onClick={() => { setMovementSource(null); setAssignedWorkerId(0); }} className="hover:text-red-600 transition-colors">✕</button>
               </div>
             )}
           </div>
 
-          <div style={{ flex: 1, border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative', overflow: 'hidden', background: '#f8fafc' }}>
-            <svg width="100%" height="100%" viewBox="0 0 1000 600">
+          <div className="flex-1 relative bg-page transition-colors">
+            <svg width="100%" height="100%" viewBox="0 0 1000 600" className="drop-shadow-sm">
               <defs>
                 <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.5"/>
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" className="text-base-border/30" strokeWidth="0.5"/>
                 </pattern>
               </defs>
               <rect width="100%" height="100%" fill="url(#grid)" />
@@ -232,56 +233,50 @@ export const WarehouseViewer: React.FC = () => {
               {shelves.map(shelf => {
                 const isSelected = selectedShelf?.shelfID === shelf.shelfID;
                 const isManagerSource = movementSource?.bin.shelfID === shelf.shelfID;
-                
-                
                 const isWorkerPickup = activeTaskSourceShelf === shelf.shelfID;
                 const isWorkerDropoff = activeTaskDestShelf === shelf.shelfID;
 
-                
                 const hasOtherTask = workOrders.some(wo => 
                   wo.status !== WorkOrderStatus.Completed && 
                   (getShelfIdFromBinId(wo.fromBinID) === shelf.shelfID || getShelfIdFromBinId(wo.toBinID) === shelf.shelfID)
                 );
 
-                let strokeColor = '#cbd5e1';
-                let strokeWidth = "1.5";
-                let fillColor = isSelected ? '#f0f9ff' : (shelf.isLoadingDock ? '#fffbeb' : 'white');
 
-                if (isSelected) {
-                   strokeColor = '#0ea5e9';
-                   strokeWidth = "3";
-                } else if (isManagerSource || isWorkerPickup) {
-                   strokeColor = '#f59e0b'; 
-                   strokeWidth = "3";
-                   fillColor = '#fff7ed';
-                } else if (isWorkerDropoff) {
-                   strokeColor = '#0ea5e9'; 
-                   strokeWidth = "3";
-                   fillColor = '#f0f9ff';
-                } else if (hasOtherTask) {
-                   strokeColor = '#10b981'; 
+                let strokeColor = isSelected ? '#f97316' : '#a8a29e'; 
+                let strokeWidth = isSelected ? "3" : "1.5";
+                let fillColor = isSelected ? '#ffedd5' : (shelf.isLoadingDock ? '#fff7ed' : '#ffffff');
+
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                if (isDarkMode) {
+                   fillColor = isSelected ? '#431407' : (shelf.isLoadingDock ? '#292524' : '#1c1917');
+                   strokeColor = isSelected ? '#fb923c' : '#44403c';
+                }
+
+                if (isManagerSource || isWorkerPickup) { 
+                  strokeColor = '#ea580c'; 
+                  strokeWidth = "3"; 
+                  fillColor = isDarkMode ? '#431407' : '#fff7ed'; 
+                }
+                else if (isWorkerDropoff) { 
+                  strokeColor = '#f97316'; 
+                  strokeWidth = "3"; 
+                  fillColor = isDarkMode ? '#431407' : '#fff7ed'; 
+                }
+                else if (hasOtherTask) { 
+                  strokeColor = '#10b981'; 
                 }
 
                 return (
-                  <g key={shelf.shelfID} onClick={() => handleShelfClick(shelf)} style={{ cursor: 'pointer' }}>
+                  <g key={shelf.shelfID} onClick={() => handleShelfClick(shelf)} className="cursor-pointer transition-all">
                     <rect 
-                      x={shelf.x} 
-                      y={shelf.y} 
-                      width={shelf.width} 
-                      height={shelf.height} 
-                      fill={fillColor} 
-                      stroke={strokeColor} 
-                      strokeWidth={strokeWidth} 
-                      rx="6" 
+                      x={shelf.x} y={shelf.y} width={shelf.width} height={shelf.height} 
+                      fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} 
+                      rx="8" className="transition-all duration-300"
                     />
                     <text 
-                      x={shelf.x + shelf.width / 2} 
-                      y={shelf.y + shelf.height / 2} 
-                      textAnchor="middle" 
-                      dominantBaseline="middle" 
-                      fill={shelf.isLoadingDock ? '#92400e' : '#1e293b'} 
-                      fontSize="12" 
-                      fontWeight="700"
+                      x={shelf.x + shelf.width / 2} y={shelf.y + shelf.height / 2} 
+                      textAnchor="middle" dominantBaseline="middle" 
+                      className={`text-[10px] font-black transition-colors ${shelf.isLoadingDock ? 'fill-primary-700 dark:fill-primary-400' : 'fill-muted-text dark:fill-slate-400'}`}
                     >
                       {shelf.label}
                     </text>
@@ -292,142 +287,123 @@ export const WarehouseViewer: React.FC = () => {
           </div>
         </div>
 
-        {}
-        <div style={{ flex: 1, border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', background: 'white', overflowY: 'auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+        <div className="flex-1 min-w-[320px] overflow-y-auto pr-1">
           {selectedShelf ? (
-            <div>
-              <div style={{ borderBottom: '2px solid #f1f5f9', paddingBottom: '15px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Card padding="md" className="h-full flex flex-col transition-colors">
+              <div className="border-b border-base-border pb-4 mb-6 flex justify-between items-start">
                 <div>
-                  <h3 style={{ margin: 0, color: '#1e293b' }}>Shelf: {selectedShelf.label}</h3>
-                  <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{selectedShelf.isLoadingDock ? 'Loading Dock Area' : 'Standard Storage'}</span>
+                  <h3 className="text-lg font-black text-card-title tracking-tight">{selectedShelf.label}</h3>
+                  <span className="text-[10px] font-bold text-muted-text uppercase tracking-widest">
+                    {selectedShelf.isLoadingDock ? 'Loading Dock' : 'Standard Shelf'}
+                  </span>
                 </div>
                 {currentUser?.role === EmployeeRole.Manager && (
-                  <button 
-                    onClick={() => setIsEditingShelf(!isEditingShelf)}
-                    style={{ padding: '4px 8px', fontSize: '0.75rem', background: isEditingShelf ? '#cbd5e1' : '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditingShelf(!isEditingShelf)}>
                     {isEditingShelf ? 'Cancel' : 'Edit'}
-                  </button>
+                  </Button>
                 )}
               </div>
               
               {isEditingShelf ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Edit Shelf Position</h4>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Label</label>
-                    <input type="text" value={editShelfLabel} onChange={e => setEditShelfLabel(e.target.value)} style={{ width: '100%', padding: '6px' }} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>X Pos</label>
-                      <input type="number" value={editShelfX} onChange={e => setEditShelfX(Number(e.target.value))} style={{ width: '100%', padding: '6px' }} />
+                <div className="space-y-4 p-4 bg-page rounded-lg border border-base-border transition-colors">
+                  <h4 className="text-[10px] font-black text-muted-text uppercase tracking-widest">Shelf Settings</h4>
+                  <div className="space-y-3">
+                    <Input label="Label" value={editShelfLabel} onChange={e => setEditShelfLabel(e.target.value)} />
+                    <div className="flex gap-2">
+                      <Input label="X" type="number" value={editShelfX} onChange={e => setEditShelfX(Number(e.target.value))} />
+                      <Input label="Y" type="number" value={editShelfY} onChange={e => setEditShelfY(Number(e.target.value))} />
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Y Pos</label>
-                      <input type="number" value={editShelfY} onChange={e => setEditShelfY(Number(e.target.value))} style={{ width: '100%', padding: '6px' }} />
-                    </div>
+                    <Button fullWidth onClick={handleUpdateShelf}>Save Changes</Button>
                   </div>
-                  <button onClick={handleUpdateShelf} style={{ padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Save Changes</button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {(selectedShelf.bins ?? []).map(bin => (
-                    <div key={bin.binID} 
-                      onClick={() => setSelectedBin(bin)}
-                      style={{ 
-                        padding: '15px', 
-                        background: selectedBin?.binID === bin.binID ? '#f8fafc' : 'white', 
-                        border: '1px solid',
-                        borderColor: selectedBin?.binID === bin.binID ? '#0ea5e9' : '#e2e8f0',
-                        borderRadius: '10px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#475569' }}>Bin Position {bin.position}</span>
-                        {movementSource && currentUser?.role === EmployeeRole.Manager && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleCreateWorkOrder(bin); }}
-                            style={{ padding: '4px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}
-                          >
-                            Set Destination
-                          </button>
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+                  {(selectedShelf.bins ?? []).map(bin => {
+                    const isTaskTarget = bin.binID === activeTaskBinID;
+                    
+                    return (
+                      <div key={bin.binID} 
+                        onClick={() => setSelectedBin(bin)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                          isTaskTarget 
+                            ? "border-primary-500 bg-primary-500/10 shadow-md ring-2 ring-primary-500/20" 
+                            : selectedBin?.binID === bin.binID 
+                              ? "bg-primary-500/5 border-primary-400" 
+                              : "bg-card border-base-border hover:border-primary-300"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${isTaskTarget ? 'text-primary-600' : 'text-muted-text'}`}>
+                              BIN #{bin.position}
+                            </span>
+                            {isTaskTarget && (
+                              <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
+                            )}
+                          </div>
+                          {movementSource && currentUser?.role === EmployeeRole.Manager && (
+                            <Button size="sm" variant="primary" className="h-7 text-[10px]" onClick={(e) => { e.stopPropagation(); handleCreateWorkOrder(bin); }}>
+                              Set Dest
+                            </Button>
+                          )}
+                        </div>
+
+                      <div className="space-y-2">
+                        {(bin.lpNs ?? []).length > 0 ? (
+                          (bin.lpNs ?? []).map(lpn => (
+                            <div key={lpn.lpnid} className="bg-page p-3 rounded-lg border border-base-border shadow-sm">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-xs font-black text-base-text">{lpn.lpnid}</span>
+                                {currentUser?.role === EmployeeRole.Manager && !movementSource && (
+                                  <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={(e) => { e.stopPropagation(); setMovementSource({ bin, lpn }); }}>
+                                    Move
+                                  </Button>
+                                )}
+                              </div>
+                              {(lpn.contents ?? []).map(content => (
+                                <div key={content.lpnContentID} className="text-[10px] text-muted-text">
+                                  {content.product?.name} x {content.quantity}
+                                </div>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-muted-text italic text-center py-2">Empty Bin</div>
                         )}
                       </div>
-
-                      {(bin.lpNs ?? []).length > 0 ? (
-                        (bin.lpNs ?? []).map(lpn => (
-                          <div key={lpn.lpnid} style={{ background: '#f1f5f9', padding: '10px', borderRadius: '6px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                              <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b' }}>LPN: {lpn.lpnid}</span>
-                              {currentUser?.role === EmployeeRole.Manager && !movementSource && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setMovementSource({ bin, lpn }); }}
-                                  style={{ padding: '2px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.7rem' }}
-                                >
-                                  Move
-                                </button>
-                              )}
-                            </div>
-                            {(lpn.contents ?? []).map(content => (
-                              <div key={content.lpnContentID} style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                {content.product?.name} x {content.quantity}
-                              </div>
-                            ))}
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>Empty Bin</div>
-                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
           ) : (
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#94a3b8', textAlign: 'center' }}>
-              <div style={{ width: '60px', height: '60px', background: '#f1f5f9', borderRadius: '12px', marginBottom: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold', color: '#cbd5e1' }}>WMS</div>
-              <h4 style={{ margin: '0 0 10px 0', color: '#475569' }}>Warehouse Ready</h4>
-              <p style={{ fontSize: '0.9rem', maxWidth: '200px', marginBottom: '20px' }}>Select a storage shelf to view LPNs and manage movements.</p>
+            <Card className="h-full flex flex-col items-center justify-center text-center p-8 transition-colors">
+              <div className="w-16 h-16 bg-primary-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-xl font-bold text-primary-300 mb-6">WMS</div>
+              <h4 className="text-base-text font-black mb-2 tracking-tight">Warehouse Ready</h4>
+              <p className="text-sm text-muted-text mb-8 max-w-[200px]">Select a storage shelf on the map to view contents.</p>
               
               {currentUser?.role === EmployeeRole.Manager && (
-                <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '20px', textAlign: 'left' }}>
-                  <h4 style={{ color: '#1e293b', marginBottom: '15px' }}>Management Tools</h4>
+                <div className="w-full pt-8 border-t border-base-border space-y-4">
+                  <h4 className="text-[10px] font-black text-muted-text uppercase tracking-widest text-left">Management</h4>
                   {isAddingShelf ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Shelf Label (e.g. C1)" 
-                        value={newShelfLabel}
-                        onChange={e => setNewShelfLabel(e.target.value)}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      />
-                      <select 
-                        value={newShelfType}
-                        onChange={e => setNewShelfType(e.target.value as any)}
-                        style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      >
-                        <option value="Standard">Standard Shelf</option>
+                    <div className="space-y-3">
+                      <Input label="Label" value={newShelfLabel} onChange={e => setNewShelfLabel(e.target.value)} />
+                      <select className="w-full p-2 text-sm border border-base-border rounded bg-card text-base-text" value={newShelfType} onChange={e => setNewShelfType(e.target.value as any)}>
+                        <option value="Standard">Standard</option>
                         <option value="Dock">Loading Dock</option>
                       </select>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={handleAddShelf} style={{ flex: 1, padding: '8px', background: '#3182ce', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Create</button>
-                        <button onClick={() => setIsAddingShelf(false)} style={{ flex: 1, padding: '8px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                      <div className="flex gap-2">
+                        <Button size="sm" fullWidth onClick={handleAddShelf}>Create</Button>
+                        <Button size="sm" fullWidth variant="secondary" onClick={() => setIsAddingShelf(false)}>Cancel</Button>
                       </div>
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => setIsAddingShelf(true)}
-                      style={{ width: '100%', padding: '10px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      + Add New Storage/Dock
-                    </button>
+                    <Button fullWidth variant="secondary" onClick={() => setIsAddingShelf(true)}>+ Add New Area</Button>
                   )}
                 </div>
               )}
-            </div>
+            </Card>
           )}
         </div>
       </div>

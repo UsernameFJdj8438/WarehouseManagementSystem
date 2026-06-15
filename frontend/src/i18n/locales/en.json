@@ -1,0 +1,24 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "logout": "Logout",
+    "loading": "Loading..."
+  },
+  "navbar": {
+    "dashboard": "Dashboard",
+    "inventory": "Inventory",
+    "map": "Warehouse Map"
+  },
+  "dashboard": {
+    "title": "Warehouse Dashboard",
+    "welcome_back": "Welcome back",
+    "inventory_summary": "Inventory Summary",
+    "inventory_desc": "View and manage your current stock levels, SKUs, and replenishment needs.",
+    "go_to_inventory": "Go to Inventory",
+    "warehouse_map": "Warehouse Map",
+    "warehouse_desc": "Visualize bin occupancy and warehouse layout.",
+    "open_map": "Open Warehouse Map",
+    "quick_stats": "Quick Stats",
+    "total_products": "Total Products"
+  }
+}

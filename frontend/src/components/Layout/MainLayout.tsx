@@ -7,9 +7,9 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f7f6', fontFamily: 'sans-serif' }}>
+    <div className="min-h-screen bg-page text-base-text font-sans transition-colors duration-300">
       <Navbar />
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
     </div>
